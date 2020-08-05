@@ -152,6 +152,8 @@ $(document).ready(function () {
   $('#metricsButtonFixed').toggle(!self.windowSliding);
 
   loadSelectedStream();
+
+  // toggleTab($('.demo-tab-btn')[1], true);
 });
 
 function setupGlobals () {
@@ -1424,10 +1426,10 @@ function hideAllTabs () {
   $('.demo-tab').hide();
 }
 
-function toggleTab (btn) {
+function toggleTab (btn, dontHideOpenTabs) {
   const tabElId = $(btn).data('tab');
   // eslint-disable-next-line no-restricted-globals
-  const modifierPressed = window.event && (window.event.metaKey || window.event.shiftKey);
+  const modifierPressed = dontHideOpenTabs || window.event && (window.event.metaKey || window.event.shiftKey);
   if (!modifierPressed) {
     hideAllTabs();
   }
