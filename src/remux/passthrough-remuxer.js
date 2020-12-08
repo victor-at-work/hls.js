@@ -39,12 +39,34 @@ class PassThroughRemuxer {
       dropped: 0
     });
 
+    if (id3Track && id3Track.samples && id3Track.samples.length) {
+      this.remuxID3(id3Track);
+    }
+
     if (textTrack && textTrack.samples && textTrack.samples.length) {
       this.remuxText(textTrack);
     }
 
     // notify end of parsing
     observer.trigger(Event.FRAG_PARSED);
+  }
+
+  remuxID3 (track) {
+    let length = track.samples.length; let sample;
+    const initPTS = track.initPTS;
+    // consume samples
+    if (length && initPTS !== undefined) {
+      for (let index = 0; index < length; index++) {
+        sample = track.samples[index];
+        // setting id3 pts, dts to relative time
+        // using this._initPTS and this._initDTS to calculate relative time
+        sample.pts = (sample.pts / sample.timescale - initPTS);
+      }
+
+      this.observer.trigger(Event.FRAG_PARSING_METADATA, {
+        samples: track.samples
+      });
+    }
   }
 
   remuxText (track) {

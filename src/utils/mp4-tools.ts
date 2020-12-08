@@ -2,6 +2,10 @@ import { logger } from '../utils/logger';
 
 const USER_DATA_REGISTERED_ITU_T_T35 = 4;
 const RBSP_TRAILING_BITS = 128;
+const VALID_ID3_SCHEME_ID_URIS = [
+  'https://aomedia.org/emsg/ID3',
+  'https://developer.apple.com/streaming/emsg-id3'
+];
 
 export function bin2str (buffer): string {
   return String.fromCharCode.apply(null, buffer);
@@ -18,6 +22,17 @@ export function readUint32 (buffer, offset): number {
     buffer[offset + 2] << 8 |
     buffer[offset + 3];
   return val < 0 ? 4294967296 + val : val;
+}
+
+export function readNullTerminatedString (buffer, offset): string {
+  let i = offset;
+
+  while (String.fromCharCode(buffer[i]) !== '\0' && i < buffer.byteLength) {
+    i++;
+  }
+
+  const val = new Uint8Array(buffer.subarray(offset, i));
+  return bin2str(val);
 }
 
 // Find the data for a box specified by its path
@@ -187,6 +202,53 @@ export function parseVideoSegmentTextTrackSamples (data, videoTrackId) {
       dts: nal.dts,
       bytes: userData
     };
+  });
+}
+
+export function parseVideoSegmentId3TrackSamples (data) {
+  const emsgs = findBox(data, ['emsg']);
+  return emsgs.map(emsg => {
+    const data = emsg.data.subarray(emsg.start, emsg.end);
+    let offset = 0;
+
+    try {
+      const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+      const version = view.getUint8(offset);
+      if (version === 1) {
+        // skip over 3 bytes of flags
+        offset += 4;
+        const timescale = view.getUint32(offset);
+        offset += 4;
+        const presentationTime = Number(view.getBigUint64(offset));
+        offset += 8;
+        const eventDuration = view.getUint32(offset);
+        offset += 4;
+        const id = view.getUint32(offset);
+        offset += 4;
+        const schemeIdUri = readNullTerminatedString(data, offset);
+        if (VALID_ID3_SCHEME_ID_URIS.includes(schemeIdUri)) {
+          // skip over the null byte
+          offset += schemeIdUri.length + 1;
+          const value = readNullTerminatedString(data, offset);
+          // skip over the null byte
+          offset += value.length + 1;
+          // the rest is id3 payload
+          const messageData = new Uint8Array(data.subarray(offset, data.byteLength));
+
+          return {
+            timescale,
+            pts: presentationTime,
+            eventDuration,
+            id,
+            schemeIdUri,
+            value,
+            data: messageData
+          };
+        }
+      }
+    } catch (err) {
+      logger.warn(`Failed to parse emsg: ${err}`);
+    }
   });
 }
 
