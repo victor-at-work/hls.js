@@ -3,7 +3,7 @@
  */
 import { dummyTrack } from './dummy-demuxed-track';
 import { logger } from '../utils/logger';
-import { bin2str, findBox, parseVideoSegmentTextTrackSamples, readUint32 } from '../utils/mp4-tools';
+import { bin2str, findBox, parseVideoSegmentTextTrackSamples, parseVideoSegmentId3TrackSamples, readUint32 } from '../utils/mp4-tools';
 import Event from '../events';
 
 const UINT32_MAX = Math.pow(2, 32) - 1;
@@ -335,6 +335,8 @@ class MP4Demuxer {
 
     const videoTrack = initData.video;
     const textTrack = dummyTrack();
+    const id3Track = dummyTrack();
+
     if (data && data.length && videoTrack) {
       const { id, timescale } = videoTrack;
       if (id && timescale) {
@@ -342,9 +344,11 @@ class MP4Demuxer {
         textTrack.timescale = timescale;
         textTrack.initPTS = initPTS;
       }
+      id3Track.samples = parseVideoSegmentId3TrackSamples(data);
+      id3Track.initPTS = initPTS;
     }
 
-    this.remuxer.remux(initData.audio, videoTrack, null, textTrack, startDTS, contiguous, accurateTimeOffset, data);
+    this.remuxer.remux(initData.audio, videoTrack, id3Track, textTrack, startDTS, contiguous, accurateTimeOffset, data);
   }
 
   destroy () {}
